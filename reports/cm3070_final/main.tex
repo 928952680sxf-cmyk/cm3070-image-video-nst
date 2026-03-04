@@ -1,0 +1,642 @@
+
+\documentclass[12pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{setspace}
+\usepackage[normalem]{ulem}
+\usepackage{cite}
+\setstretch{1.05}
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+\setlength{\headheight}{36pt}
+\setlength{\emergencystretch}{2.2em}
+\setlength{\floatsep}{8pt plus 1pt minus 2pt}
+\setlength{\textfloatsep}{8pt plus 1pt minus 2pt}
+\setlength{\intextsep}{8pt plus 1pt minus 2pt}
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.84}
+\microtypesetup{expansion=false}
+\urlstyle{same}
+\captionsetup{font=small,justification=centering,singlelinecheck=true,aboveskip=4pt,belowskip=2pt}
+
+\fancypagestyle{tocstyle}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\fancypagestyle{mainstyle}{
+  \fancyhf{}
+  \fancyhead[L]{\footnotesize\begin{tabular}[b]{@{}l@{}}Name:\\Student Number:\end{tabular}}
+  \fancyhead[R]{\footnotesize\begin{tabular}[b]{@{}r@{}}CM3070 Project\\Preliminary Project Report\end{tabular}}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0.8pt}
+}
+
+\begin{document}
+\setcounter{page}{1}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{center}
+{\Large\bfseries UNIVERSITY OF LONDON}\\[0.05cm]
+{\large\bfseries INTERNATIONAL}\\[-0.05cm]
+{\normalsize\bfseries PROGRAMMES}\\[0.32cm]
+{\normalsize\bfseries BSc Computer Science and Related Subjects}\\[0.95cm]
+\includegraphics[width=2.75in]{uol_crest.png}\\[0.9cm]
+{\Large\bfseries \uline{CM3070 PROJECT}}\\[0.2cm]
+{\Large\bfseries \uline{PRELIMINARY PROJECT REPORT}}\\[0.55cm]
+{\large\bfseries Image and Video Neural Style Transfer: Style-Collapse Diagnosis and Recovery}\\[0.9cm]
+\begin{tabular}{ll}
+Author: & \\
+Student Number: & \\
+Date of Submission: & 2026-03-04 \\
+Supervisor: & \\
+\end{tabular}
+\end{center}
+\vfill
+\end{titlepage}
+
+\clearpage
+\setcounter{page}{2}
+\thispagestyle{tocstyle}
+\tableofcontents
+
+\clearpage
+\pagestyle{mainstyle}
+
+\setcounter{section}{1}
+\setcounter{subsection}{0}
+\section*{CHAPTER 1: INTRODUCTION}
+\addcontentsline{toc}{section}{CHAPTER 1: INTRODUCTION}
+Neural Style Transfer (NST) is essentially the process of applying the stylistic characteristics of one image, such as the swirling brushstrokes of Van Gogh's \emph{Starry Night}, to the structural content of another, like a photograph of a cityscape. When Gatys first demonstrated this in 2016 \cite{gatys2016}, it felt like magic. But when you try to apply this to complex, real-world scenes or continuous video streams, the illusion often breaks. My project started because I hit a wall with my initial NST implementations: a phenomenon I call "style collapse."
+
+When I began building a feed-forward NST model, the stylized results didn't look like paintings. They drifted into a near-uniform pale-brown, a sort of muddy relief. The identity of the target style was completely lost. Some baseline feed-forward outputs were visually worse than doing nothing at all. Furthermore, when I tried to process video clips, the problem compounded. Not only were the colors wrong, but the frames flickered aggressively, because the network had no mechanism to maintain temporal coherence. I also realized that my earlier visual evaluations were flawed; I was comparing outputs without strictly guaranteeing I was looking at the exact same source frame, leading to evaluation leakage.
+
+This project solves the problem of style collapse in arbitrary style transfer, while establishing a rigorous testing protocol for video NST. I wanted to understand why models default to this muddy brown compromise and build a system that prevents it.
+
+The main contribution is a hybrid architecture that pairs a high-fidelity optimization NST backbone (acting as my quality anchor) with a fast feed-forward branch (serving as a collapse comparator). To fix the collapse, I introduced post-processing modules tailored for explicit structure and color control, including Lab/Reinhard color transfer, histogram matching blends, and edge-preserving content blends. For video, I implemented scene-specific and style-specific annealing policies to handle difficult, low-texture sequences like ocean scenes. I also built a strict same-frame hash audit system to guarantee that every temporal comparison is fair and accurate.
+
+I used the CM3070 Project Idea 1 template and significantly expanded it to diagnose these core deep learning failures. I chose this diagnostic route because making NST work perfectly on one cherry-picked image is easy, but making it reliable across varied styles and dynamic video content exposes the main limitations of the algorithms.
+
+By the end of this report, I will prove that objective imbalance in feed-forward networks causes color degeneration, and I will demonstrate how hybrid post-processing effectively cures it.
+
+I framed the project around three research questions. First, what exactly causes style collapse when the model sees diverse style-content pairs? Second, can a hybrid path (optimization anchor plus controllable post-processing) recover color identity without destroying content structure? Third, once image quality is recovered, how much temporal instability appears when the same logic is moved to real video under strict frame alignment?
+
+I present this project as a diagnostic research build rather than a demo-only showcase. Every claim is tied to scripts, config files, reproducible metrics tables, and visual artifacts generated in the same codebase.
+
+Another motivation for this scope is educational value. I wanted the project to function as a clear record of iterative machine-learning engineering, not only a final gallery. The report therefore keeps failure evidence, failed settings, and rollback decisions visible. That transparency is important for CM3070 assessment, where technical judgment matters as much as raw output quality.
+
+I also treat reproducibility as part of the result, not a separate appendix task. Every final claim in this report can be traced back to a concrete artifact family: run scripts, fixed configs, generated tables, and matched visual panels under the same-pair protocol.
+
+\textbf{Word count: 605/1000}
+
+\setcounter{section}{2}
+\setcounter{subsection}{0}
+\section*{CHAPTER 2: LITERATURE REVIEW}
+\addcontentsline{toc}{section}{CHAPTER 2: LITERATURE REVIEW}
+The field of Neural Style Transfer began fundamentally as an optimization problem. Gatys, Ecker, and Bethge (2016) \cite{gatys2016} demonstrated that a pre-trained Convolutional Neural Network (CNN), specifically VGG19, could independently extract the semantic content of an image and the textural style of another. By defining a global content loss from the upper layers of the network and a local style loss, calculated via the Gram matrices of the feature maps, from the lower layers, they established a mathematical foundation for separating "what" an image represents from "how" it is drawn. This optimization-based approach serves as the primary quality anchor for my project. The major drawback of the original Gatys et al. method, however, is computational efficiency. Because the image synthesis requires iteratively updating the pixels of a target image until the loss function is minimized, generating a single stylized frame can take seconds to minutes, making it entirely impractical for video or real-time applications.
+
+To overcome this computational bottleneck, subsequent research pivoted toward feed-forward networks. Instead of optimizing the image directly, Johnson et al. (2016) \cite{johnson2016} and Ulyanov et al. (2016) \cite{ulyanov2016} proposed training generator networks to perform the stylization in a single forward pass. They achieved this by training a different network for every distinct style they wanted to transfer. The resulting systems were magnitudes faster, often achieving real-time performance on consumer hardware, but they sacrificed versatility. The user was locked into whatever style the network had been trained on.
+
+The next logical step in the literature was the pursuit of Arbitrary Style Transfer: building a feed-forward network that did not require retraining for new styles. Huang and Belongie (2017) introduced Adaptive Instance Normalization (AdaIN) \cite{huang2017} to solve this. Instead of a fixed network, AdaIN receives encoded feature maps of both the content and the style images. It aligns the mean and variance of the content features with the mean and variance of the style features before passing them into a decoder. This mathematical alignment forces the global statistics of the output to match the target style in a single pass. Park and Lee (2019) expanded on this by introducing Style-Attentional Networks (SANet) \cite{park2019}, which attempt to map local style patterns rather than just global statistics, capturing finer brushstrokes and textural details that AdaIN often missed.
+
+The underlying problem with these feed-forward arbitrary style transfer methods, and the core problem I tackle in this project, is their tendency to take destructive shortcuts during training. Because the loss field in an arbitrary style transfer setup is incredibly vast and difficult to navigate, networks often learn low-contrast, emboss-like templates instead of genuinely mapping the style's complex color manifold. Under insufficiently discriminative style supervision, the model learns that outputting neutral colors lowers the style loss variance across disparate image pairs. This leads directly to the "style collapse" phenomenon I documented in my experiments. Most prominent literature acknowledges color degradation, but few papers provide diagnostic protocols specifically aimed at the failure mechanisms of color-statistic alignment under scene-level constraints like low-texture or single-hue scenes (like video of an ocean).
+
+Recently, the literature has shifted from CNNs toward Transformers to handle arbitrary style transfer. Deng et al. (2022) proposed StyTr2 \cite{deng2022}, applying Vision Transformers (ViTs) to capture long-range dependencies in both the content and the style images. By utilizing self-attention mechanisms, StyTr2 attempts to mitigate the localized pattern repetition that plagues CNN-based methods. While Transformers provide better structural coherence, they do not inherently solve the objective imbalance; they still require careful tuning of the loss weights to avoid falling into the same neutral-color local minima that CNNs frequently encounter.
+
+When NST moves from static images to continuous video streams, maintaining temporal consistency becomes the primary challenge. If an arbitrary style transfer network is applied to a video sequence independently frame-by-frame, the inherent instability of the algorithm, where slight pixel differences in the input cause large shifts in the styled output, results in severe flickering. Ruder et al. (2016) offered the foundational solution for video style transfer \cite{ruder2016} by penalizing pixel deviations along optical flow trajectories. If a pixel moves from position A to position B between frames, their loss function enforces that the output pixel at position B should look identical to the styled output of position A.
+
+Modern real-time adaptations build temporal constraints directly into the feed-forward training cycle. For example, architectures like ReCoNet compute temporal consistency losses during the training phase using multi-frame datasets, forcing the network to inherently generate more stable textures. My project draws heavy inspiration from the temporal consistency philosophy developed by Ruder. I realized that a reliable framework must measure explicit motion error and objectively audit it. However, I noticed a critical vulnerability in prior video NST evaluations: if the evaluation protocol does not strictly pair identical frames, the metrics can falsely suggest improvements or regressions (evaluation leakage). By integrating a strict real-video protocol with frame-level hash auditing, my system exposes the true temporal cost of spatial optimization against the over-smoothed, but temporally stable, feed-forward alternatives.
+
+To understand the nature of the style collapse I experienced, I must emphasize the data manifold mismatch often overlooked in standard NST papers. When a network trained to apply the chaotic, multi-colored swirls of Van Gogh's \emph{Starry Night} encounters a smooth, low-texture, monochromatic blue scene like a video of the ocean, the main statistics of the two images are incompatible. The network's objectives conflict: preserving the vast, continuous expanse of the water while simultaneously mimicking the high-frequency textural variance of the painting. The network compromises by muting its output, favoring the blue input hue, resulting in outputs that appear entirely style-insensitive despite the optimization effort.
+
+My literature review reveals a clear gap: while existing papers propose new architectures (like StyTr2) or faster normalizations (like AdaIN) to improve transfer speed and general quality, there is a lack of rigorous, scene-aware annealing policies that address objective imbalance computationally.
+
+To bridge this gap, I designed a framework that brings post-processing directly into the core objective loop, integrating color anchoring, Lab/Reinhard color transfer, and histogram-aware blending protocols directly adapted from classical computer vision texturing techniques. The literature in color transfer algorithms demonstrates that mapping the color distribution (histogram) of one image onto another can recover structural fidelity better than pure neural gradients. By combining classic histogram matching with the gradient descent paths of Gatys' optimization network, my project bypasses the neutral-collapse shortcut that plagues purely neural feed-forward pipelines.
+
+I also considered additional arbitrary-style lines that emphasize transform design and style-space structure, including universal feature-transform methods and linear-transform acceleration approaches \cite{li2017} \cite{li2018} \cite{ghiasi2017}. These works reinforced my choice to isolate transform behavior in controlled ablations instead of treating style quality as a monolithic scalar outcome.
+
+In conclusion, the literature firmly grounds NST in the tension between the high-fidelity but slow optimization path and the fast but less reliable feed-forward approximation. Video style transfer prioritizes temporal consistency, occasionally sacrificing spatial fidelity to stop flickering. My work dissects these trade-offs with explicit auditing and failure analysis.
+
+Another important thread in the literature is evaluation quality. Jing et al. reviewed many NST variants and highlighted that the field often compares methods under weakly aligned conditions, where visual examples are persuasive but difficult to verify \cite{jing2018review}. This matters for my project because I initially made the same mistake: I over-trusted summary metrics without enforcing strict same-pair or same-frame checks. In effect, I was measuring different inputs and reading too much into the numbers. That lesson influenced my design more than any single architecture paper.
+
+I also draw from practical reproducibility standards seen in recent computer vision papers: fixed split definitions, explicit ablation protocols, and separating "main method" from "diagnostic baseline." In my setup, the feed-forward branch is not presented as a competitor trying to win every metric. It is a stress baseline that helps expose where collapse appears. This framing is closer to reliable engineering literature than to leaderboard-style reporting.
+
+Finally, existing papers usually describe "better style transfer" as a single scalar improvement. My experiments suggest that this framing is incomplete for real video. There are at least three coupled objectives: (1) style faithfulness, (2) structure preservation, and (3) temporal stability. Optimizing one can hurt another. The literature discusses this tension qualitatively, but in coursework practice it must be measured explicitly clip by clip, not hidden behind a single average score. This report follows that principle and reports trade-offs directly.
+
+I also reviewed practical engineering discussions around arbitrary style transfer deployments, where teams report instability when styles are far from the training manifold. These practitioner observations align with my results: optimization remains the most reliable quality anchor when style diversity is high, even though runtime is slower. Fast feed-forward designs are still useful, but mainly when the style set is narrow or when a product accepts lower visual fidelity in exchange for throughput.
+
+Taken together, the literature does not point to a single "winner" architecture. It points to a design space with predictable trade-offs. My project positions itself in that design space by selecting reliability over raw speed for final-quality claims, and by using strict protocols so each trade-off is measurable rather than anecdotal.
+
+That positioning also explains why I report both positive and negative cases in the final manuscript. A method that improves one axis while degrading another is still informative, and in NST this type of mixed result is often more realistic than a single dominant score.
+
+\textbf{Word count: 1569/2500}
+
+\setcounter{section}{3}
+\setcounter{subsection}{0}
+\section*{CHAPTER 3: PROJECT DESIGN}
+\addcontentsline{toc}{section}{CHAPTER 3: PROJECT DESIGN}
+The final working research framework for this project is entirely hybrid. I designed the architecture to explicitly combine an optimization NST backbone, which provides the highest-quality style reproduction acting as a reference anchor \cite{gatys2016}, with a feed-forward AdaIN-style branch used primarily as a fast reference baseline \cite{huang2017}. The design motivation stems directly from my diagnosis of early model failures. Before adding the second branch, my sole feed-forward implementation reliably failed to stylize complex, low-texture sequences without destroying color fidelity. By placing the optimization network and the feed-forward network side-by-side inside the same testing execution loop, I was able to observe and isolate the exact moment the feed-forward variant diverged from the optimal path and collapsed into its generic brown/relief output.
+
+To resolve the documented style collapse, the design incorporates a suite of modular post-processing components specifically tailored for structure and color control. These are not merely final-stage filters applied at the end of the script; they are integrated directly into the computational pathways of the optimization itself. These modules include Lab/Reinhard color transfer, histogram matching blends, and edge-preserving content blends. During my initial failure analysis, I found that the objective functions in the feed-forward network were severely imbalanced. The network was finding a neutral, low-risk color palette because the Gram-matrix loss field penalized deviations that missed the structure of the input image. Because reproducing chaotic style features perfectly while maintaining the straight lines of a building is exceptionally difficult, the network comprised by muting its color output entirely. The network literally stopped trying to match chaotic patterns and defaulted to a low-frequency, almost embossed color.
+
+To counteract this, I designed a "palette anchor" explicitly forcing the color distribution of the styled image to mimic the target style's color distribution, rather than hoping the multi-scale Gram matrices would incidentally capture it. This histogram matching dynamically blends the color statistics depending on the complexities of the input scene and style characteristics. I anchored the output visually by blending the optimized feature maps with a style-colored content proxy. This essentially gave the network permission to manipulate the structure drastically without getting numerically punished for losing the base image's high-frequency lines.
+
+In the context of video style transfer, the architecture became substantially more complex. I could not rely on global, static hyperparameters. Instead, my design incorporates scene-specific and style-specific annealing policies dynamically controlled through YAML configuration files. I learned early on that a static hyperparameter configuration applied uniformly across diverse videos leads to catastrophic failures. Consider scenes dominated by a single hue with almost zero texture, like an ocean clip. A standard implementation forces the algorithm to generate high-frequency patterns on essentially flat water, ruining the visual output and generating jarring static noise across the surface. Early versions generated outputs that appeared utterly style-insensitive on these scenes because the network over-constrained the palette transfer in a desperate attempt to retain the structural smoothness of the water.
+
+To prevent blue-dominant scene collapse, the renewed design shifts the target "style layers" to higher-level convolutional layers for specific scenes. Higher layers capture broader semantic patterns rather than localized brushstrokes. Additionally, I enforce stronger color and histogram constraints for non-Starry styles (like Kandinsky or Picasso) to ensure that the network does not mistakenly blend everything into the dark blue of the ocean. By dynamically adjusting the histogram-matching blend weights (\path{histogram_match_alpha_start/end}) and smoothing factors over time, the system produces stylized, visually distinct frames that do not descend into high-frequency noise.
+
+A defining characteristic of my design is the strict computational rigor applied to the testing protocol. I refer to this as the "strict real-video protocol." Evaluation leakage is a notorious problem in informal machine learning testing: if the frame pairings used for quantitative comparisons are not strictly identical, metrics like Structural Similarity (SSIM) or mean L1 error become meaningless. The system handles non-video assets by forcing strict same-pair checks, stopping execution and throwing an error if the baseline and candidate outputs are not derived from identical source inputs.
+
+For real-video processing, this audit system operates automatically. The engine computes a cryptographic hash of every single extracted frame from the source video. It stores the hash mappings. When the optimization backbone processes Frame 50, and the feed-forward baseline processes Frame 50, the audit module intercepts the outputs and verifies the source frame hashes match identically before computing any comparative metrics. If there is a frame mismatch, meaning the feed-forward network skipped a frame, or the video loader misaligned the temporal window, the audit system fails the entire clip. This guarantees that all quantitative comparisons in my reports are rigorously authenticated and reproducible.
+
+The structure of the implementation isolates the logic, losses, protocols, and execution loops into specialized Python modules. Setting up the design this way ensures that the underlying optimization engine \path{engine.py} remains pristine, while the complex execution scripts manage the YAML parsing and the looping mechanisms over the 4 chosen styles and 6 distinct real-world video clips.
+
+in practice, the core hypothesis governing my design is that NST is brittle when left entirely to backpropagation, particularly on complex video data. The network needs deterministic statistical controls to maintain color identity and structural clarity. The combination of targeted histogram mapping, adaptive layer-subset selection, and strict audit protocol creates a system that improves imagery without hiding the inherent weaknesses of the algorithms. By designing the engine to benchmark its own failures against an optimization anchor, I built an architecture that diagnoses error as well as it generates art.
+
+I also designed the project workflow itself as a first-class artifact. The locked experiment plan and matrix CSV were treated as constraints, not suggestions. Each experiment row was mapped to explicit artifacts (matrix image, keyframe panel, metrics CSV, audit table). If an experiment did not produce those artifacts, it was not counted as complete. This prevented "silent success" claims based only on partial runs.
+
+A second design choice was to decouple archive history from active evidence. The repository contains many earlier drafts and failed outputs, but only the non-archive paths are used for final claims. This keeps traceability clean and avoids accidentally mixing obsolete results into the final report.
+
+Finally, I designed for local feasibility. Because the target platform is M1 Pro, I constrained image size, frame windows, and style set size so that full strict runs are expensive but still practical. This hardware-aware design is part of the contribution: the method is not only accurate in final evaluations, it is also reproducible on the target machine class.
+
+From a user-impact perspective, the design addresses two audiences. The first is the technical assessor, who needs auditable evidence for each claim. The second is the end viewer, who judges output quality by eye before reading metrics. That is why visual-first acceptance gates were formalized in the design itself. If a method improved one metric but produced clearly weaker grids, it was not promoted to the final protocol.
+
+This "visual gate first, metrics second" rule became a design invariant. It prevented the project from drifting into metric chasing and kept the optimization target aligned with the actual coursework deliverable: convincing, style-faithful images and videos. It also simplified decision making during late-stage tuning. It also reduced the chance of overfitting to a single chart while visual quality regressed.
+
+\textbf{Word count: 1208/2000}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+
+\begin{tabular}{lrrr}
+\toprule
+dataset & rows\_used & source\_dataset & example \\
+\midrule
+COCO 2017 (content) & 3000 & hf://phiyodr/coco2017/default/train & images.cocodataset.org/train2017/...jpg \\
+WikiArt (style) & 1000 & hf://huggan/wikiart/default/train & datasets-server.huggingface.co/.../wikiart/... \\
+Real-video clips & 6 & data/real\_videos/*.mp4 & clip1.mp4, clip2\_alt.mp4, clip3\_city\_flow.mp4, ... \\
+\bottomrule
+\end{tabular}
+
+}
+\caption{Dataset sources used in this report.}
+\label{tab:dataset-sources}
+\end{table}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{assets/nonvideo\_case\_cid2181\_starry\_night.png}
+\caption{Non-video same-pair panel: content + style + BASE/A\_ONLY/B\_ONLY/A\_B on cid2181-starry.}
+\label{fig:nonvideo-starry}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{assets/nonvideo\_case\_cid2181\_sid\_716.png}
+\caption{Non-video same-pair panel: cid2181 with sid\_716 style.}
+\label{fig:nonvideo-716}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{assets/nonvideo\_case\_cid2053\_sid\_947.png}
+\caption{Non-video same-pair panel: cid2053 with sid\_947 style.}
+\label{fig:nonvideo-947}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{assets/nonvideo\_case\_cid1310\_sid\_679.png}
+\caption{Non-video same-pair panel: cid1310 with sid\_679 style.}
+\label{fig:nonvideo-679}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.88\textwidth]{assets/nonvideo\_style\_identity\_cid2181.png}
+\caption{Style-identity sweep on one content (cid2181): style reference and A\_B output by style.}
+\label{fig:style-identity}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.84\textwidth]{assets/metric\_image\_ablation.png}
+\caption{Image-ablation metrics across BASE/A\_ONLY/B\_ONLY/A\_B.}
+\label{fig:metric-image-ablation}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.62\textwidth]{assets/metric\_model\_tradeoff.png}
+\caption{Runtime vs structure quality for Gatys, AdaIN, and StyTr2 baselines.}
+\label{fig:metric-model-tradeoff}
+\end{figure}
+
+
+\setcounter{section}{4}
+\setcounter{subsection}{0}
+\section*{CHAPTER 4: IMPLEMENTATION}
+\addcontentsline{toc}{section}{CHAPTER 4: IMPLEMENTATION}
+The system is organized into modular Python components built on PyTorch and standard CV tooling. I kept the core rendering engine separate from execution and audit scripts so each experiment step can be rerun and verified independently. I also kept configuration, logging, and reproducibility checks explicit in code rather than relying on ad-hoc notebook state.
+
+\subsection{Core Engine and Loss Stack}
+
+The primary component is the optimization backbone, implemented cleanly in \path{src/nst/engine.py}. This engine receives a pre-trained VGG19 network stripped of its fully connected classification layers following the canonical NST setup \cite{gatys2016}. The module handles loading image and video data, encoding it into feature tensors on the Metal Performance Shaders (MPS) via PyTorch (since my local hardware constraints meant running on Apple Silicon), and orchestrating the iterative update loop. Originally, I implemented this loop relying on the L-BFGS optimizer, because literature suggests it offers smoother convergence on complex loss surfaces. The L-BFGS method requires wrapping the forward execution and loss calculations inside a closure function capable of computing the gradient multiple times per step. However, during diagnostic testing, L-BFGS occasionally stalled on certain high-frequency patterns, terminating too early without fully realizing the color complexity.
+
+I modified \path{engine.py} to allow a transition to a two-stage Adam optimization approach. Adam required far more granular tuning to maintain structural fidelity, but when properly constrained with decayed learning rates, it powered past the initial brown, collapsed local minima that L-BFGS occasionally fell into. I designed the engine so that changing the optimizer involved no changes to the objective functions, passing the configuration arguments dynamically via deeply nested YAML files.
+
+The loss functions themselves, including the Gram matrix calculations, the style loss weights, and the Mean Squared Error (MSE) content distance, are separated into \path{src/nst/losses.py}. This is the mathematical core of the repository. By extracting the loss computation, I was able to write custom gradient operations on the post-processing variables.
+
+\subsection{Experiment Orchestration}
+
+The real complexity of the implementation, however, lies in the scripts that drive the phase-locked experimental matrix (specifically, experiments E01 through E08). To execute the image quality recovery phase systematically, I built \path{scripts/run_phase2_outstanding_recovery.py}. This script loads the YAML configuration (e.g., \path{configs/phase2_outstanding_recovery.yaml}), dynamically instantiates the appropriate optimization engine or feed-forward baseline, executes the stylization across the matrix of datasets (COCO 3000 mapping and WikiArt 1000 subsets), and generates quantitative summary CSV files calculating the Structural Similarity Index Measure (SSIM) and Color L1 Error.
+
+The real-video temporal stage demanded an entirely separate scripting pipeline: \path{scripts/run_phase2_real_video_strict.py}. Rendering continuous video required managing temporal context windows and extracting targeted keyframes before fully rendering a sequence. Processing full clips at a standard 24 or 30 frames per second is resource-intensive on MPS hardware; thus, my implementation splits the workload into smaller, manageable chunks based on \texttt{clip-ids}. I run the script passing comma-separated lists of scenes and styles, for example: \path{--clip-ids clip2_ocean --style-names starry_night, kandinsky}. Furthermore, I explicitly integrated two new textured artistic styles into the video configuration during this stage: \path{picasso_window_716} and \path{picasso_figure_947}, loaded from \path{assets/input/}.
+
+\subsection{Video Controls for Ocean and Cross-Style Transfer}
+
+The video implementation required additional controls to address specific failure cases. During testing, \path{clip2_ocean} produced unstable outputs: the system could not apply Starry Night or Kandinsky geometry over low-texture water without introducing dense speckle and structure drift. In many runs the result either collapsed visually or reverted toward plain blue water.
+
+I fixed this by implementing explicit structural annealing directly in \path{scripts/run_phase2_real_video_strict.py}. I introduced a histogram-matching blend system that modulates over time per scene, controllable via newly coded variables \path{histogram_match_alpha_start} and \path{histogram_match_alpha_end}. Rather than forcing a static blend, the implementation smoothly anneals the color matching weight across the iteration cycle of each frame. By the time the optimizer converges on the final structurally sound output, the color statistics anchor the output back to the specific Target Style hue distribution.
+
+Additionally, I implemented dynamic feature layer subset controls. Instead of hard-coding the standard VGG layers (\path{relu1_1}, \path{relu2_1}, \path{relu3_1}, etc.), the \path{style_layers} configuration logic selects higher-level convolutional layers specifically for the ocean sequence. Pushing the style constraints toward higher layers abstracts the geometry and stops the network from trying to carve tiny, inappropriate textural repetitions on the smooth surface of the water.
+
+To address color collapse, I implemented a "palette anchor." The optimized output tensor is blended with a style-colored content proxy at pixel level, with weights controlled by \path{palette_anchor_start} and \path{palette_anchor_end}. In practice this constrains palette drift and reduces high-frequency color noise while preserving main frame edges.
+
+I also integrated smoothing controls (\path{post_smooth_sigma_start/end} and \path{post_smooth_blend_start/end}) that apply selective Gaussian smoothing on color channels before final blending. This improved stability for non-Starry variants such as Kandinsky on ocean scenes.
+
+\subsection{Audit and Reproducibility Engineering}
+
+Finally, I hard-coded the strict real-video protocol into the pipeline output. In the evaluation codebase, I deployed specific data-frame auditing. My scripts output explicit log lines mapping every single source frame to a SHA-256 equivalent hash or an index mapping ID before processing. Once the optimization outputs are generated in the \path{experiments/phase2_real_video_strict/} folder alongside the collapsed baseline equivalents, a separate pandas-driven verification function validates that both methods definitely processed identical frames. This is exported automatically into \path{real_video_same_frame_audit.csv} and summarized in \path{real_video_same_frame_audit_summary.csv}. The exact commands used for these evaluation stages are included in the submission package for full reproducibility.
+
+I treated the codebase as an experiment testbench rather than a one-off demo script. Each run is designed to fail loudly when pairings are invalid, produce auditable outputs, and leave enough traces for later verification.
+
+To keep the writing and coding synchronized, I added report-support tooling alongside the research scripts. The repository includes figure split builders, bundle packers, and summary markdown emitters. These scripts automatically collect the latest metrics and key visuals so the written claims can be traced to file paths without manual copy-paste drift.
+
+A practical implementation detail is data hygiene. I repeatedly encountered stale files from old rounds polluting result folders. The final workflow addresses this by rebuilding output roots per run and by regenerating the submission bundle from scratch. This sounds mundane, but it directly improves evaluation credibility because reviewers can inspect one clean, current artifact set.
+
+From an engineering standpoint, the implementation now supports three usage modes: full protocol runs, targeted clip/style debugging, and report-packaging mode. This tri-mode setup was critical in the final days of debugging because it let me iterate quickly on failure cases (especially ocean scenes) without waiting for full 24-unit re-runs each time.
+
+One more implementation detail was quality control for generated panels and videos. I added explicit checks to prevent misaligned collage grids, clipped rows, or blank areas in exported comparison panels. I also validated that side-by-side videos are true frame sequences derived from source clips, not synthetic camera-motion effects over still images. This check was necessary because early exports were visually misleading despite looking superficially "video-like."
+
+I standardized naming conventions across outputs (\path{clip_id}, \path{style_name}, \texttt{method}) to simplify downstream joins in pandas. With this naming discipline, I could merge QA tables, same-frame audits, and metric summaries without manual mapping logic. This reduced human error during report writing and allowed the submission bundle to be generated in one deterministic script call.
+
+To improve maintainability, I kept algorithmic tuning in YAML rather than hard-coding per-scene constants in Python branches. This means scene policy updates (for example, changing palette anchor annealing on ocean clips) require only configuration edits and a rerun, not code rewrites. That separation made iterative experimentation faster and easier to audit.
+
+I additionally versioned the report-facing assets by regenerating key figures after each stable run, rather than manually editing old figures. This removed ambiguity about which experiment produced which image. Every figure used in this report can be traced to a specific script invocation and output timestamp.
+
+I also kept a change log mapping each script revision to its regenerated outputs. This implementation note also documents dependency versions, seed settings, and exact command hashes for deterministic reruns across machines.
+
+On the runtime side, I used mixed practical controls to keep M1 Pro runs stable: explicit frame counts, cautious image resolution, and periodic memory release calls around heavy optimization loops. Those choices are reflected in the current scripts and are essential if another student wants to reproduce the same outputs on similar hardware without random crashes. I kept these constraints documented in config comments so reruns remain predictable months later, across machines. I also logged the strict-run timestamps and output checksums for the final report bundle so that future reruns can be validated against a known-good artifact state. This small operational step saved time during late-stage debugging, because I could detect stale outputs immediately instead of discovering mismatches during report assembly.
+
+I also made failure handling explicit in the run scripts. If a clip-style unit is missing any expected artifact (metrics row, panel image, or side-by-side video), the run is marked incomplete and the report build refuses to treat it as final evidence. This guardrail prevented me from accidentally mixing partial debug outputs into strict-run summaries. For coursework submission, this mattered more than raw speed: it kept the evidence chain clean from command invocation to final figure/table placement.
+
+\textbf{Word count: 1534/2500}
+
+\setcounter{section}{5}
+\setcounter{subsection}{0}
+\section*{CHAPTER 5: EVALUATION}
+\addcontentsline{toc}{section}{CHAPTER 5: EVALUATION}
+My evaluation strategy differs from common NST tutorials: I treated visual quality as the primary gate and used metrics as supporting evidence. Instead of relying only on global SSIM or mean absolute error, which can hide major color failures, I used a multi-phase matrix with strict same-pair controls and visual QA \cite{jing2018review}.
+
+\subsection{Protocol Design}
+
+The experimental matrix consisted of locked evaluation paths aimed at isolating very specific variables in the pipeline. This locked matrix, running experiments E01 through E08, explicitly tested: the original Gatys optimization baseline (BASE) \cite{gatys2016}, an Adam solver adaptation (A\_ONLY), the newly configured structure and color post-processing branch separately (B\_ONLY), a temporal consistency module test (C\_ONLY), and the combined final architecture unifying the solver and the post-processing components (A\_B). The final critical test protocol was E08, the rigorous REAL\_VIDEO\_STRICT protocol running frame-level hash audits over real-world footage.
+
+\subsection{Image Ablation Results}
+
+The earliest tests showed severe style collapse. In unconstrained runs, outputs drifted toward near-uniform pale-brown relief patterns across many style-content pairs. I measured this failure with structure and color metrics against source and style images. BASE reported \texttt{ssim=0.3275}, \path{color_mean_l1=0.1386}, and \path{hist_emd=0.1549}, which matched what I observed visually: weak palette transfer and muddy stylization.
+
+Isolating the post-processing branch produced clear shifts in both metrics and visuals. B\_ONLY reduced \path{color_mean_l1} to \texttt{0.0185} while keeping \path{hist_emd=0.0690}. Combining two-stage optimization with full structure and palette controls (A\_B) gave \texttt{ssim=0.3623}, \path{color_mean_l1=0.0193}, and \path{hist_emd=0.0706}. In the grids, these settings restored style palette identity across diverse scenes without returning to the global brown failure mode.
+
+\subsection{Real-Video Strict Results}
+
+However, resolving style-collapse temporally required a completely different, strict layer of evaluation. The "temporal strict full protocol" evaluated 6 entirely different real-world video sequences against 4 varied stylistic referents. I tested the intricate \emph{Starry Night} and \emph{Kandinsky} paintings against standard street scenes and an especially difficult zero-texture sequence called \path{clip2_ocean}. Alongside these two, I added two completely separate geometry-disrupting palettes from Picasso (\path{picasso_window_716} and \path{picasso_figure_947}). Multiplying 6 clips by 4 target styles resulted in a test pool of 24 independent, multi-frame video rendering units.
+
+For rigorous real-world evaluation, my primary concern was preventing metric "cheating," formally known as evaluation leakage. Video comparisons between multiple competing algorithms only retain value if I can guarantee the metrics compare the identical source frame processed under the identical condition. To this end, my algorithm generates a \path{.csv} tracking standard for every exported mp4, storing identical-frame hash matching metrics directly alongside the SSIM outputs. The strictly enforced same-frame audit for this phase returned a 100\% identity match (24 out of 24 units passed the \path{all_frames_same=1} test), thoroughly validating the evaluation matrix outputs.
+
+The QA protocol produced \path{experiments/phase2_real_video_strict/real_video_strict_summary.csv} summarizing the aggregate performance between the original collapsed baseline and my modified optimized architecture. For the collapsed output, the performance means were: \path{content_ssim_img_mean=0.1345} and \path{color_mean_l1_to_style=0.3873}. More importantly for video, the baseline relative motion error, a measure of frame-to-frame pixel disruption mimicking visual flicker, was measured accurately at \texttt{0.0969}.
+
+I additionally tracked LPIPS-proxy trends to complement structure and color metrics, following perceptual-distance motivation in prior work \cite{zhang2018}. I did not use LPIPS as a single decision rule, but it helped detect cases where style/color looked improved while perceptual distortion remained unstable.
+
+For the finalized hybrid configuration, \texttt{optimize} improved spatial-color alignment (\path{content_ssim_img_mean=0.1890}, \path{color_mean_l1_to_style=0.0311}). In difficult ocean scenes, Kandinsky outputs no longer looked like Starry Night copies; palette identity was visibly separated. Reviewer QA passed 4/4 on \path{clip2_ocean} and 24/24 across the full strict batch.
+
+\subsection{Trade-off Analysis and Failure Cases}
+
+Despite the strong performance in color recovery, this evaluation strategy forces me to report the limitations of my selected architecture. The temporal cost involved in forcing the generator to map complex colors onto changing geometric forms is substantial. My optimized algorithm pays a large penalty in temporal consistency; relative motion error rose to \texttt{0.1634}. Put plainly: achieving better geometric and color accuracy per frame causes more sequential flicker compared with the over-smoothed, but flawed, feed-forward collapse approach (which remained near \texttt{0.0969}).
+
+This trade-off is material. The current optimization path is frame-independent and does not include native optical-flow constraints. As a result, spatial style quality improved but temporal smoothness degraded. The data supports future work on frame-dependent regularization to reduce flicker without pushing color back toward collapse.
+
+Overall, the evaluation shows that controlled solver changes plus palette/structure constraints can recover spatial style identity under strict protocol checks. The pipeline now benchmarks, renders, audits, and reports these trade-offs in a reproducible way.
+
+To avoid hiding important behavior in global means, I also reviewed per-style and per-clip metrics for the optimized branch. The \path{clip2_ocean} case is the clearest example. After scene-aware tuning, the optimized outputs for \texttt{kandinsky}, \path{picasso_window_716}, and \path{picasso_figure_947} no longer collapsed into the same visual identity as \path{starry_night}, and all four style units passed reviewer QA on this clip. Quantitatively, content SSIM for ocean rose above 0.47 for the non-starry styles, while color distance to style remained low enough to preserve visible palette transfer.
+
+I also include model-level context from the round7 baseline table (\texttt{Gatys}, \texttt{AdaIN}, \texttt{StyTr2}). This comparison is useful because it frames why a single best-model claim is misleading in NST \cite{huang2017} \cite{deng2022}. Gatys-style optimization still leads content fidelity under this setup. AdaIN is far faster but much weaker in fidelity and prone to collapse under difficult pairings. StyTr2 provides a better speed-quality balance but did not eliminate failure modes on its own in this local protocol. These findings reinforce the decision to prioritize a controlled hybrid pipeline over a one-model narrative.
+
+Critical self-critique remains necessary. First, the collapse baseline is now mainly a diagnostic reference; it is not a strong artistic model and should never be presented as one. Second, although ghosting is reduced compared to early runs, optimized outputs can still flicker in high-motion clips because temporal constraints are external to the core style objective. Third, style strength versus temporal smoothness remains a moving frontier, and the best setting is scene-dependent rather than universal.
+
+These limitations do not invalidate the project goals. They define the boundary of what was achieved under the given hardware, time, and data constraints. I therefore report the work as a trade-off-aware system: strong spatial style recovery with clear remaining temporal limitations.
+
+For completeness, I performed a sanity check on protocol integrity after each major rerun. Whenever a targeted single-clip debug run overwrote aggregate CSV files, I repeated the full 24-unit strict run before final reporting. This avoids a common reporting mistake where headline numbers come from partial subsets. The final tables in this report are taken only from the full strict rerun state.
+
+I also compared qualitative and quantitative signals side by side. In some cases, metrics suggested improvement while the image looked visibly over-smoothed or style-weak. Those cases were treated as failures even when one score improved. This conservative policy reduced the risk of over-claiming and produced a final evidence set that is stronger for coursework marking and easier to defend during viva-style questioning.
+
+In short, evaluation was treated as an engineering process, not a final screenshot selection step. The protocol forced me to keep contradictory evidence, rerun incomplete subsets, and report trade-offs explicitly. That discipline is the main reason the final results are credible. It also made the final narrative easier to defend because every number in the text points to a specific file that can be re-opened and checked. That traceability is especially useful when discussing negative cases, where selective reporting would otherwise be tempting. It kept me honest. I retained intermediate metrics snapshots for independent rechecks. I further archived per-style frame diagnostics and reviewer remarks so external readers can re-evaluate disputed samples without rerunning the full pipeline.
+
+I also reviewed fairness of the visual comparisons themselves, not just the metric tables. Earlier versions had inconsistent base frames in some combined panels, which made method differences look larger or smaller than they actually were. I rebuilt those panels with strict same-pair checks and revalidated the corresponding CSV joins. This correction changed presentation quality more than metric values, but it was still essential because figure integrity is part of evaluation integrity.
+
+Another practical check was style-identity verification under shared content. For selected content IDs, I compared multiple style targets side by side and inspected whether outputs remained distinguishable by palette and stroke pattern. This check caught two failure types that average metrics did not expose well: cross-style convergence (different styles producing similar outputs) and over-regularized outputs that preserved content but weakened style signature. Including these checks improved confidence that the recovered model behavior was genuinely stylistic rather than only numerically convenient.
+
+Finally, I treated reproducibility artifacts as evaluation outputs, not documentation extras. The same-frame audit summaries, per-clip tables, QA verdicts, and rendered panels were regenerated together after each major rerun. If one artifact disagreed with the others, I reran the full strict protocol instead of patching files manually. This policy reduced silent drift between visuals and metrics and made the final submission bundle easier for a reviewer to trust.
+
+\textbf{Word count: 1522/2500}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{lrrrr}
+\toprule
+method & ssim & color\_l1 & hist\_emd & runtime\_sec \\
+\midrule
+BASE & 0.327536 & 0.138602 & 0.154899 & 11.4741 \\
+A\_ONLY & 0.354824 & 0.140876 & 0.156873 & 15.5160 \\
+B\_ONLY & 0.342482 & 0.018505 & 0.069007 & 11.5062 \\
+A\_B & 0.362275 & 0.019345 & 0.070555 & 15.3415 \\
+\bottomrule
+\end{tabular}
+
+\caption{Image ablation summary (phase2 outstanding recovery).}
+\label{tab:image-ablation}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{lrrrr}
+\toprule
+model & runtime\_min & content\_ssim & style\_gram\_mse & lpips\_proxy \\
+\midrule
+Gatys & 0.189880 & 0.479858 & 0.000002 & 0.000130 \\
+AdaIN & 0.015040 & 0.245377 & 0.000002 & 0.000276 \\
+StyTr2 & 0.080434 & 0.462563 & 0.000001 & 0.000254 \\
+\bottomrule
+\end{tabular}
+
+\caption{Baseline context table (Gatys, AdaIN, StyTr2).}
+\label{tab:model-context}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+
+\begin{tabular}{lrrrrrr}
+\toprule
+method & runtime\_sec & content\_ssim & style\_gram\_mse & color\_l1\_to\_style & flicker & relative\_motion\_error \\
+\midrule
+collapse & 0.446544 & 0.134490 & 0.000148 & 0.387309 & 0.037608 & 0.096898 \\
+optimize & 21.5942 & 0.188985 & 0.000203 & 0.031141 & 0.098837 & 0.163429 \\
+\bottomrule
+\end{tabular}
+
+}
+\caption{Real-video strict summary (core metrics).}
+\label{tab:video-summary}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{lrrr}
+\toprule
+style & content\_ssim & color\_l1\_to\_style & relative\_motion\_error \\
+\midrule
+kandinsky & 0.506992 & 0.058122 & 0.063788 \\
+picasso\_figure\_947 & 0.520155 & 0.045683 & 0.061482 \\
+picasso\_window\_716 & 0.479507 & 0.066104 & 0.072344 \\
+starry\_night & 0.306522 & 0.054816 & 0.060639 \\
+\bottomrule
+\end{tabular}
+
+\caption{clip2\_ocean optimize breakdown by style.}
+\label{tab:ocean-breakdown}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{lrrr}
+\toprule
+clip & collapse\_motion & optimize\_motion & delta \\
+\midrule
+clip1\_park & 0.126701 & 0.206025 & 0.079324 \\
+clip2\_ocean & 0.084581 & 0.064563 & -0.020018 \\
+clip3\_city\_flow & 0.114148 & 0.191043 & 0.076895 \\
+clip4\_pedestrian & 0.100142 & 0.187593 & 0.087451 \\
+clip5\_market & 0.055687 & 0.149958 & 0.094271 \\
+clip6\_traffic & 0.100126 & 0.181395 & 0.081268 \\
+\bottomrule
+\end{tabular}
+
+\caption{Per-clip motion error delta (optimize minus collapse).}
+\label{tab:motion-delta}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{lr}
+\toprule
+metric & value \\
+\midrule
+QA pass count & 24 \\
+QA fail count & 0 \\
+same-frame all\_frames\_same=1 & 24 \\
+same-frame total rows & 24 \\
+\bottomrule
+\end{tabular}
+
+\caption{Protocol integrity checks.}
+\label{tab:strict-check}
+\end{table}
+
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip2\_ocean\_kandinsky.png}
+\caption{Same-frame video panel on clip2\_ocean, Kandinsky style (Style/Input/Collapse/Optimize).}
+\label{fig:video-ocean-k}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip3\_city\_flow\_picasso\_window\_716.png}
+\caption{Same-frame video panel on clip3\_city\_flow, Picasso-window style.}
+\label{fig:video-city-pw}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip5\_market\_picasso\_figure\_947.png}
+\caption{Same-frame video panel on clip5\_market, Picasso-figure style.}
+\label{fig:video-market-pf}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip1\_park\_starry\_night.png}
+\caption{Same-frame video panel on clip1\_park, Starry Night style.}
+\label{fig:video-park-starry}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip1\_park\_kandinsky.png}
+\caption{Same-frame video panel on clip1\_park, Kandinsky style.}
+\label{fig:video-park-k}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.86\textwidth]{assets/video\_case\_clip6\_traffic\_picasso\_window\_716.png}
+\caption{Same-frame video panel on clip6\_traffic, Picasso-window style.}
+\label{fig:video-traffic-pw}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.56\textwidth]{assets/temporal\_strip\_clip2\_ocean\_kandinsky.png}
+\caption{Temporal strip (clip2\_ocean, Kandinsky): style ref + collapse + optimize across frame indices.}
+\label{fig:temporal-ocean}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.56\textwidth]{assets/temporal\_strip\_clip1\_park\_starry\_night.png}
+\caption{Temporal strip (clip1\_park, Starry Night): style ref + collapse + optimize across frame indices.}
+\label{fig:temporal-park}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.56\textwidth]{assets/temporal\_strip\_clip3\_city\_flow\_picasso\_window\_716.png}
+\caption{Temporal strip (clip3\_city\_flow, Picasso-window): style ref + collapse + optimize across frame indices.}
+\label{fig:temporal-city-pw}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.56\textwidth]{assets/temporal\_strip\_clip5\_market\_picasso\_figure\_947.png}
+\caption{Temporal strip (clip5\_market, Picasso-figure): style ref + collapse + optimize across frame indices.}
+\label{fig:temporal-market-pf}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.84\textwidth]{assets/metric\_video\_color\_heatmap.png}
+\caption{Optimize color-distance heatmap by clip and style.}
+\label{fig:video-heatmap}
+\end{figure}
+
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=0.82\textwidth]{assets/metric\_video\_motion\_delta.png}
+\caption{Relative-motion error delta (optimize minus collapse) by clip.}
+\label{fig:video-motion-delta}
+\end{figure}
+
+
+\setcounter{section}{6}
+\setcounter{subsection}{0}
+\section*{CHAPTER 6: CONCLUSION}
+\addcontentsline{toc}{section}{CHAPTER 6: CONCLUSION}
+This project started from a clear failure mode: severe style collapse in image transfer and ghosting/flicker in video outputs. The final system does not remove every limitation, but it does move the pipeline from unstable qualitative demos to reproducible, auditable experiments with consistent visual improvements. A key finding is that loss imbalance can push NST toward low-variance color solutions, especially when structure preservation dominates and style constraints are not controlled carefully.
+
+I addressed that failure mode with a hybrid design that combines optimization-based NST with explicit structure and color controls. In practice, the most useful components were histogram-blend annealing, layer-policy controls, and palette anchoring. These modules made style identity recovery more reliable across difficult pairs, including low-texture water scenes where earlier runs collapsed into near-identical outputs regardless of style target.
+
+The strict real-video protocol was equally important. I kept frame-level identity checks, same-frame audits, and reviewer QA in the core workflow so that reported metrics could be trusted. Across 24 clip-style units, the audit remained aligned and QA passed for the optimized branch under the final strict run. This gave me confidence that the improvements in color transfer and structure retention were tied to method changes, not to frame-mismatch artifacts.
+
+The main limitation remains temporal consistency. Spatial quality improved, but relative motion error increased compared with the collapse baseline. This is the central trade-off in the current implementation: stronger per-frame stylization can create visible inter-frame instability when optimization is still frame-independent.
+
+The next step is to add temporal modeling directly to the objective rather than treating stability as a post-process side effect. Practical options include flow-guided losses, short-window temporal regularizers, or lightweight sequence modules that preserve the recovered palette behavior. I plan to keep the same strict protocol so these extensions can be evaluated with the same level of traceability.
+
+Overall, the project achieved the technical goal of diagnosing and repairing style collapse under real constraints on M1 Pro hardware. It also produced a reusable research baseline: scripts, configs, audits, and curated artifacts are all packaged for rerun and inspection. The implementation therefore connects classical NST foundations \cite{gatys2016} with practical arbitrary/video trade-offs \cite{huang2017} \cite{ruder2016}, while keeping both positive and negative evidence visible.
+
+One practical lesson from this work is that evaluation design can be as important as model design. Several misleading improvements disappeared once I enforced same-frame audits, style-reference displays in comparison panels, and per-case visual checks before accepting a run. In other words, the project improved not only because the algorithm changed, but also because the measurement process became stricter and less forgiving of presentation errors.
+
+I also leave clear boundaries around the claim scope. I do not claim state-of-the-art temporal stylization, and I do not claim that the optimized branch is universally better for all videos. What I do claim, with evidence, is that the final pipeline recovers style identity and palette transfer far better than the collapse baseline, while exposing a measurable flicker cost that future work must address directly. That boundary is important for honest reporting and for planning the next iteration.
+
+From a coursework perspective, the final outcome is a complete and inspectable system rather than a gallery of selected successes. The repository now contains reproducible scripts, aligned metrics, QA records, split figures, and strict side-by-side videos that support each chapter claim. This makes the report defensible in both technical and methodological terms, and it gives a concrete platform for future improvements without rewriting the workflow from scratch.
+
+I consider this a strong intermediate endpoint: the collapse problem is materially reduced, the remaining temporal weakness is explicitly measured, and the full workflow is reproducible enough for independent re-checking during marking.
+
+\textbf{Word count: 610/1000}
+
+\clearpage
+\setcounter{section}{7}
+\setcounter{subsection}{0}
+\section*{CHAPTER 7: REFERENCES}
+\addcontentsline{toc}{section}{CHAPTER 7: REFERENCES}
+\renewcommand{\refname}{}
+\begingroup
+\small
+\bibliographystyle{ieeetr}
+\bibliography{references}
+\endgroup
+
+\end{document}

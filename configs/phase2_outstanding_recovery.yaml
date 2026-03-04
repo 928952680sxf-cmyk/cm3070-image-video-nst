@@ -1,0 +1,37 @@
+experiment:
+  name: phase2_outstanding_recovery
+  out_root: experiments/phase2_outstanding_recovery
+
+runtime:
+  device: auto
+  seed: 20260227
+  image_size: 320
+
+data:
+  content_manifest: data/phase3_s/coco_pool_manifest_real.csv
+  style_manifest: data/phase3_s/wikiart_pool_manifest_real.csv
+  starry_style_path: assets/input/style_starry_night.jpg
+  content_ids: [2181, 2053, 1310]
+  extra_style_count: 3
+
+train:
+  base:
+    steps: 220
+    lr: 0.025
+    content_weight: 1.0
+    style_weight: 110000.0
+    tv_weight: 0.000002
+  a_stage1:
+    steps: 70
+    lr: 0.30
+    content_weight: 1.0
+    style_weight: 90000.0
+    tv_weight: 0.000003
+  a_stage2:
+    steps: 180
+    lr: 0.02
+    content_weight: 1.0
+    style_weight: 115000.0
+    tv_weight: 0.000002
+  b:
+    edge_blend_strength: 0.33

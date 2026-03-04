@@ -1,0 +1,284 @@
+experiment:
+  name: phase2_real_video_strict
+  out_root: experiments/phase2_real_video_strict
+  report_root: reports
+  preview_root: reports/preview
+
+runtime:
+  device: auto
+  seed: 20260308
+  image_size: 320
+
+data:
+  styles:
+    - name: starry_night
+      path: assets/input/style_starry_night.jpg
+    - name: kandinsky
+      path: assets/input/style_kandinsky.jpg
+    - name: picasso_window_716
+      path: assets/input/style_picasso_window_716.jpg
+    - name: picasso_figure_947
+      path: assets/input/style_picasso_figure_947.jpg
+  videos:
+    - id: clip1_park
+      path: data/real_videos/clip1.mp4
+      start_sec: 1.0
+      frame_stride: 6
+    - id: clip2_ocean
+      path: data/real_videos/clip2_alt.mp4
+      start_sec: 8.0
+      frame_stride: 7
+    - id: clip3_city_flow
+      path: data/real_videos/clip3_city_flow.mp4
+      start_sec: 1.5
+      frame_stride: 7
+    - id: clip4_pedestrian
+      path: data/real_videos/clip4_pedestrian.mp4
+      start_sec: 2.0
+      frame_stride: 6
+    - id: clip5_market
+      path: data/real_videos/clip5_market.mp4
+      start_sec: 0.6
+      frame_stride: 5
+    - id: clip6_traffic
+      path: data/real_videos/clip6_traffic.mp4
+      start_sec: 0.5
+      frame_stride: 4
+  n_frames: 10
+
+collapse:
+  checkpoint: experiments/phase2_round7_focus/checkpoints/a_b_c.pt
+
+optimize:
+  style_layers: [conv1_1, conv2_1, conv3_1, conv4_1, conv5_1]
+  stage1_first:
+    steps: 24
+    optimizer: lbfgs
+    lr: 0.24
+    content_weight: 1.0
+    style_weight: 90000.0
+    tv_weight: 0.000003
+  stage2_first:
+    steps: 56
+    optimizer: adam
+    lr: 0.020
+    content_weight: 1.0
+    style_weight: 130000.0
+    tv_weight: 0.000002
+  stage1_next:
+    steps: 8
+    optimizer: lbfgs
+    lr: 0.18
+    content_weight: 1.0
+    style_weight: 76000.0
+    tv_weight: 0.000003
+  stage2_next:
+    steps: 20
+    optimizer: adam
+    lr: 0.017
+    content_weight: 1.0
+    style_weight: 110000.0
+    tv_weight: 0.000002
+  edge_blend_strength: 0.11
+  temporal_blend: 0.00
+  detail_reinforce: 0.00
+  collapse_init_blend: 0.24
+  collapse_texture_boost: 0.08
+  collapse_color_anchor: 0.00
+  motion_max_shift: 0
+  reset_each_frame: true
+  style_scale_start: 1.45
+  style_scale_end: 1.62
+  content_scale_start: 0.75
+  content_scale_end: 0.70
+  color_transfer_alpha_start: 0.82
+  color_transfer_alpha_end: 0.98
+  histogram_match_alpha_start: 0.00
+  histogram_match_alpha_end: 0.00
+  content_residual_blend_start: 0.01
+  content_residual_blend_end: 0.00
+  motion_mask_threshold: 0.055
+  motion_mask_softness: 0.030
+  post_smooth_sigma: 0.00
+  post_smooth_blend: 0.00
+  palette_anchor: 0.00
+  scene_overrides:
+    default:
+      style_overrides:
+        starry_night:
+          style_scale_start: 1.60
+          style_scale_end: 1.80
+          edge_blend_strength_start: 0.10
+          edge_blend_strength_end: 0.08
+          collapse_init_blend_start: 0.30
+          collapse_init_blend_end: 0.38
+          collapse_texture_boost_start: 0.10
+          collapse_texture_boost_end: 0.14
+          color_transfer_alpha_start: 0.88
+          color_transfer_alpha_end: 1.00
+          histogram_match_alpha_start: 0.02
+          histogram_match_alpha_end: 0.06
+        kandinsky:
+          style_scale_start: 1.48
+          style_scale_end: 1.65
+          collapse_init_blend_start: 0.22
+          collapse_init_blend_end: 0.30
+          collapse_texture_boost_start: 0.07
+          collapse_texture_boost_end: 0.11
+          histogram_match_alpha_start: 0.12
+          histogram_match_alpha_end: 0.22
+        picasso_window_716:
+          style_scale_start: 1.46
+          style_scale_end: 1.62
+          color_transfer_alpha_start: 0.90
+          color_transfer_alpha_end: 1.00
+          histogram_match_alpha_start: 0.16
+          histogram_match_alpha_end: 0.28
+          collapse_init_blend_start: 0.20
+          collapse_init_blend_end: 0.28
+          collapse_texture_boost_start: 0.06
+          collapse_texture_boost_end: 0.10
+        picasso_figure_947:
+          style_scale_start: 1.42
+          style_scale_end: 1.58
+          color_transfer_alpha_start: 0.88
+          color_transfer_alpha_end: 0.98
+          histogram_match_alpha_start: 0.14
+          histogram_match_alpha_end: 0.24
+          collapse_init_blend_start: 0.18
+          collapse_init_blend_end: 0.26
+          collapse_texture_boost_start: 0.05
+          collapse_texture_boost_end: 0.09
+    clip2_ocean:
+      # Ocean scene: prioritize structure and motion fidelity over aggressive texture injection.
+      reset_each_frame: true
+      style_layers: [conv4_1, conv5_1]
+      style_scale_start: 0.10
+      style_scale_end: 0.18
+      content_scale_start: 1.34
+      content_scale_end: 1.52
+      color_transfer_alpha_start: 0.76
+      color_transfer_alpha_end: 0.90
+      histogram_match_alpha_start: 0.82
+      histogram_match_alpha_end: 0.94
+      edge_blend_strength_start: 0.10
+      edge_blend_strength_end: 0.16
+      content_residual_blend_start: 0.30
+      content_residual_blend_end: 0.22
+      temporal_blend_start: 0.00
+      temporal_blend_end: 0.00
+      detail_reinforce_start: 0.00
+      detail_reinforce_end: 0.00
+      collapse_init_blend_start: 0.00
+      collapse_init_blend_end: 0.00
+      collapse_texture_boost_start: 0.00
+      collapse_texture_boost_end: 0.00
+      post_smooth_sigma_start: 0.58
+      post_smooth_sigma_end: 0.78
+      post_smooth_blend_start: 0.44
+      post_smooth_blend_end: 0.56
+      palette_anchor_start: 0.72
+      palette_anchor_end: 0.84
+      motion_max_shift: 0
+      style_overrides:
+        starry_night:
+          style_layers: [conv3_1, conv4_1, conv5_1]
+          style_scale_start: 0.16
+          style_scale_end: 0.26
+          color_transfer_alpha_start: 0.44
+          color_transfer_alpha_end: 0.58
+          histogram_match_alpha_start: 0.22
+          histogram_match_alpha_end: 0.36
+          edge_blend_strength_start: 0.14
+          edge_blend_strength_end: 0.20
+          content_residual_blend_start: 0.28
+          content_residual_blend_end: 0.20
+          post_smooth_sigma_start: 0.44
+          post_smooth_sigma_end: 0.62
+          post_smooth_blend_start: 0.32
+          post_smooth_blend_end: 0.42
+          palette_anchor_start: 0.36
+          palette_anchor_end: 0.48
+        kandinsky:
+          style_layers: [conv4_1, conv5_1]
+          style_scale_start: 0.10
+          style_scale_end: 0.18
+          color_transfer_alpha_start: 0.86
+          color_transfer_alpha_end: 0.96
+          histogram_match_alpha_start: 0.92
+          histogram_match_alpha_end: 0.98
+          edge_blend_strength_start: 0.08
+          edge_blend_strength_end: 0.14
+          content_residual_blend_start: 0.30
+          content_residual_blend_end: 0.22
+          post_smooth_sigma_start: 0.66
+          post_smooth_sigma_end: 0.88
+          post_smooth_blend_start: 0.56
+          post_smooth_blend_end: 0.68
+          palette_anchor_start: 0.82
+          palette_anchor_end: 0.92
+        picasso_window_716:
+          style_layers: [conv4_1, conv5_1]
+          style_scale_start: 0.10
+          style_scale_end: 0.18
+          color_transfer_alpha_start: 0.84
+          color_transfer_alpha_end: 0.95
+          histogram_match_alpha_start: 0.90
+          histogram_match_alpha_end: 0.98
+          edge_blend_strength_start: 0.08
+          edge_blend_strength_end: 0.14
+          content_residual_blend_start: 0.30
+          content_residual_blend_end: 0.22
+          post_smooth_sigma_start: 0.66
+          post_smooth_sigma_end: 0.88
+          post_smooth_blend_start: 0.56
+          post_smooth_blend_end: 0.68
+          palette_anchor_start: 0.82
+          palette_anchor_end: 0.92
+        picasso_figure_947:
+          style_layers: [conv4_1, conv5_1]
+          style_scale_start: 0.10
+          style_scale_end: 0.18
+          color_transfer_alpha_start: 0.84
+          color_transfer_alpha_end: 0.95
+          histogram_match_alpha_start: 0.90
+          histogram_match_alpha_end: 0.98
+          edge_blend_strength_start: 0.08
+          edge_blend_strength_end: 0.14
+          content_residual_blend_start: 0.30
+          content_residual_blend_end: 0.22
+          post_smooth_sigma_start: 0.66
+          post_smooth_sigma_end: 0.88
+          post_smooth_blend_start: 0.56
+          post_smooth_blend_end: 0.68
+          palette_anchor_start: 0.82
+          palette_anchor_end: 0.92
+    clip5_market:
+      style_overrides:
+        picasso_figure_947:
+          style_scale_start: 1.26
+          style_scale_end: 1.42
+          content_residual_blend_start: 0.08
+          content_residual_blend_end: 0.04
+          edge_blend_strength_start: 0.14
+          edge_blend_strength_end: 0.12
+
+qa:
+  enforce_gram_gain: false
+  enforce_style_gain_vs_input: false
+  gram_gain_min: 2.0
+  color_gain_min: 1.2
+  opt_content_ssim_img_min: 0.10
+  opt_relative_motion_error_max: 0.22
+  opt_delta_to_input_l1_min: 0.09
+  opt_style_gain_vs_input_min: 1.6
+  per_clip:
+    clip2_ocean:
+      opt_content_ssim_img_min: 0.15
+      opt_delta_to_input_l1_min: 0.07
+
+video:
+  out_dir: video
+  fps: 8
+  write_gif: false
+  key_frames: [0, 3, 6, 9]
