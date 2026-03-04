@@ -14,3 +14,4 @@ Core deliverables only.
 - `scripts/`: reproducible training/evaluation/report build scripts.
 - `configs/`: key experiment configs.
 - `src/nst/`: core NST implementation modules.
+- `video`: since the folder is too large, put it in google drive, [click here](https://drive.google.com/drive/folders/17c6ZkHN8gvOvqeImUk3Vl8AjJixeAXyT?usp=sharing)
