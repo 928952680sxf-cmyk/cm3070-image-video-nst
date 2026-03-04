@@ -11,7 +11,8 @@ Core deliverables only.
 - `reports/review/`: template/report visual parity compares and sampled rendered pages.
 - `experiments/`: core CSV metrics and protocol audit files.
 - `video/`: strict same-frame side-by-side mp4 outputs.
-- `scripts/`: reproducible training/evaluation/report build scripts.
+- `scripts/`: reproducible training/evaluation scripts.
 - `configs/`: key experiment configs.
 - `src/nst/`: core NST implementation modules.
-- `video`: since the folder is too large, put it in google drive, [click here](https://drive.google.com/drive/folders/17c6ZkHN8gvOvqeImUk3Vl8AjJixeAXyT?usp=sharing)
+
+note: since the video/ folder is too large, put it in google drive, [click here](https://drive.google.com/drive/folders/17c6ZkHN8gvOvqeImUk3Vl8AjJixeAXyT?usp=sharing)
